@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ssh-keygen:*)",
+      "Bash(ssh-add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
