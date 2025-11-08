@@ -58,3 +58,8 @@ sysinfo.txt
 # Crashlytics generated file
 crashlytics-build.properties
 
+LinuxLoginServiceIOS/Library
+LinuxLoginServiceIOS/Logs
+LinuxLoginServiceIOS/Temp
+LinuxLoginServiceIOS/obj
+LinuxLoginServiceIOS/UserSettings
