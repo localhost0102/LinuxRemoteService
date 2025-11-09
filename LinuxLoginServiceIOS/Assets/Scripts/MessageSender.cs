@@ -1,7 +1,7 @@
 using System;
-using System.Collections;
 using System.Net.Http;
 using System.Text;
+using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Events;
 using LinuxLoginService.Models;
@@ -34,6 +34,7 @@ namespace LinuxLoginService.Services
         #region Private Fields
         private static readonly HttpClient _httpClient = new HttpClient();
         private bool _isSending = false;
+        private const string XApiKey = "X-API-Key";
         #endregion
 
         #region Properties
@@ -58,27 +59,27 @@ namespace LinuxLoginService.Services
         public string FullUrl => _connectionConfig.ConstructUrl();
         #endregion
 
-        #region Unity Lifecycle
-        private void OnValidate()
-        {
-            if (_connectionConfig != null && !_connectionConfig.IsValid())
-            {
-                Debug.LogWarning("[MessageSender] Connection configuration is invalid");
-            }
-
-            if (_messageConfig != null && !_messageConfig.IsValid())
-            {
-                Debug.LogWarning("[MessageSender] Message configuration is invalid");
-            }
-        }
-        #endregion
+        // #region Unity Lifecycle
+        // private void OnValidate()
+        // {
+        //     if (_connectionConfig != null && !_connectionConfig.IsValid())
+        //     {
+        //         Debug.LogWarning("[MessageSender] Connection configuration is invalid");
+        //     }
+        //
+        //     if (_messageConfig != null && !_messageConfig.IsValid())
+        //     {
+        //         Debug.LogWarning("[MessageSender] Message configuration is invalid");
+        //     }
+        // }
+        // #endregion
 
         #region Public Methods
         /// <summary>
         /// Sends the configured message to the target server.
         /// This method can be called directly from UI Button onClick events.
         /// </summary>
-        public void SendMessage()
+        public async void SendMessage()
         {
             if (_isSending)
             {
@@ -93,14 +94,14 @@ namespace LinuxLoginService.Services
                 return;
             }
 
-            StartCoroutine(SendMessageCoroutine(_connectionConfig, _messageConfig));
+            await SendMessageAsync(_connectionConfig, _messageConfig);
         }
 
         /// <summary>
         /// Sends a message with custom connection configuration.
         /// </summary>
         /// <param name="connectionConfig">Custom connection configuration</param>
-        public void SendMessage(ConnectionConfig connectionConfig)
+        public async void SendMessage(ConnectionConfig connectionConfig)
         {
             if (_isSending)
             {
@@ -115,7 +116,7 @@ namespace LinuxLoginService.Services
                 return;
             }
 
-            StartCoroutine(SendMessageCoroutine(connectionConfig, _messageConfig));
+            await SendMessageAsync(connectionConfig, _messageConfig);
         }
 
         /// <summary>
@@ -123,7 +124,7 @@ namespace LinuxLoginService.Services
         /// </summary>
         /// <param name="connectionConfig">Custom connection configuration</param>
         /// <param name="messageConfig">Custom message configuration</param>
-        public void SendMessage(ConnectionConfig connectionConfig, MessageConfig messageConfig)
+        public async void SendMessage(ConnectionConfig connectionConfig, MessageConfig messageConfig)
         {
             if (_isSending)
             {
@@ -145,7 +146,7 @@ namespace LinuxLoginService.Services
                 return;
             }
 
-            StartCoroutine(SendMessageCoroutine(connectionConfig, messageConfig));
+            await SendMessageAsync(connectionConfig, messageConfig);
         }
 
         /// <summary>
@@ -169,7 +170,7 @@ namespace LinuxLoginService.Services
         /// Sends a custom message payload with the configured connection settings.
         /// </summary>
         /// <param name="customPayload">Custom JSON payload to send</param>
-        public void SendCustomMessage(string customPayload)
+        public void SendCustomMessage(string customPayload, ConnectionConfig connectionConfig)
         {
             var customMessage = new MessageConfig(customPayload)
             {
@@ -178,7 +179,7 @@ namespace LinuxLoginService.Services
                 Method = _messageConfig.Method
             };
 
-            SendMessage(_connectionConfig, customMessage);
+            SendMessage(connectionConfig, customMessage);
         }
 
         /// <summary>
@@ -230,40 +231,31 @@ namespace LinuxLoginService.Services
         #endregion
 
         #region Private Methods
-        private IEnumerator SendMessageCoroutine(ConnectionConfig connectionConfig, MessageConfig messageConfig)
+        private async Task SendMessageAsync(ConnectionConfig connectionConfig, MessageConfig messageConfig)
         {
             _isSending = true;
             string url = connectionConfig.ConstructUrl();
 
-            Debug.Log($"[MessageSender] Sending message to: {url}");
-            Debug.Log($"[MessageSender] Connection: {connectionConfig}");
-            Debug.Log($"[MessageSender] Message: {messageConfig}");
+            //Debug.Log($"[MessageSender] Sending message to: {url}");
+            //Debug.Log($"[MessageSender] Connection: {connectionConfig}");
+            //Debug.Log($"[MessageSender] Message: {messageConfig}");
 
-            // Create HTTP request with the appropriate method
-            HttpRequestMessage request = CreateHttpRequest(connectionConfig, messageConfig);
-
-            // Set timeout
-            _httpClient.Timeout = TimeSpan.FromSeconds(messageConfig.TimeoutSeconds);
-
-            // Send request in a separate task
-            var sendTask = _httpClient.SendAsync(request);
-
-            // Wait for completion or timeout
-            float elapsedTime = 0f;
-            while (!sendTask.IsCompleted && elapsedTime < messageConfig.TimeoutSeconds)
+            try
             {
-                elapsedTime += Time.deltaTime;
-                yield return null;
-            }
+                // Create HTTP request with the appropriate method
+                HttpRequestMessage request = CreateHttpRequest(connectionConfig, messageConfig);
+                Debug.LogWarning(request);
 
-            // Handle response
-            if (sendTask.IsCompleted)
-            {
-                try
+                // Create cancellation token for timeout
+                using (var cts = new System.Threading.CancellationTokenSource())
                 {
-                    HttpResponseMessage response = sendTask.Result;
-                    string responseBody = response.Content.ReadAsStringAsync().Result;
+                    cts.CancelAfter(TimeSpan.FromSeconds(messageConfig.TimeoutSeconds));
 
+                    // Send request and await response
+                    HttpResponseMessage response = await _httpClient.SendAsync(request, cts.Token);
+                    string responseBody = await response.Content.ReadAsStringAsync();
+
+                    // Handle response
                     if (response.IsSuccessStatusCode)
                     {
                         Debug.Log($"[MessageSender] Success! Status: {response.StatusCode}, Response: {responseBody}");
@@ -276,24 +268,23 @@ namespace LinuxLoginService.Services
                         OnMessageFailed?.Invoke(errorMsg);
                     }
                 }
-                catch (Exception ex)
-                {
-                    string errorMsg = $"Exception: {ex.Message}";
-                    Debug.LogError($"[MessageSender] Error: {errorMsg}");
-                    OnMessageFailed?.Invoke(errorMsg);
-                }
             }
-            else
+            catch (TaskCanceledException)
             {
                 string errorMsg = "Request timeout";
                 Debug.LogError($"[MessageSender] {errorMsg}");
                 OnMessageFailed?.Invoke(errorMsg);
-
-                // Cancel the task
-                sendTask.Dispose();
             }
-
-            _isSending = false;
+            catch (Exception ex)
+            {
+                string errorMsg = $"Exception: {ex.Message}";
+                Debug.LogError($"[MessageSender] Error: {errorMsg}");
+                OnMessageFailed?.Invoke(errorMsg);
+            }
+            finally
+            {
+                _isSending = false;
+            }
         }
 
         private HttpRequestMessage CreateHttpRequest(ConnectionConfig connectionConfig, MessageConfig messageConfig)
@@ -316,7 +307,7 @@ namespace LinuxLoginService.Services
             // Add API key header
             if (!string.IsNullOrEmpty(connectionConfig.ApiKey))
             {
-                request.Headers.Add("x-api-key", connectionConfig.ApiKey);
+                request.Headers.Add(XApiKey, connectionConfig.ApiKey);
             }
 
             // Add content for methods that support it

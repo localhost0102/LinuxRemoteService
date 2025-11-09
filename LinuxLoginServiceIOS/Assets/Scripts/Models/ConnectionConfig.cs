@@ -23,8 +23,8 @@ namespace LinuxLoginService.Models
         [Tooltip("Use HTTPS instead of HTTP")]
         [SerializeField] private bool _useHttps = false;
 
-        [Tooltip("Request endpoint path (e.g., /api/message)")]
-        [SerializeField] private string _endpoint = "/api/message";
+        //[Tooltip("Request endpoint path (e.g., /api/message)")]
+        private string _endpoint;
         #endregion
 
         #region Properties
@@ -196,7 +196,7 @@ namespace LinuxLoginService.Models
         #region Overrides
         public override string ToString()
         {
-            return $"ConnectionConfig[{Protocol}://{_targetUrl}:{_port}{_endpoint}, ApiKey: {(_apiKey.Length > 0 ? "***" : "none")}]";
+            return $"ConnectionConfig[{Protocol}://{_targetUrl}:{_port}{_endpoint}, ApiKey: {(_apiKey)}]";
         }
         #endregion
     }

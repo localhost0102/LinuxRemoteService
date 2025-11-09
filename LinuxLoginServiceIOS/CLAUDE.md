@@ -450,3 +450,4 @@ The following should be in `.gitignore` (if using version control):
 - `UserSettings/` - User-specific settings
 
 Always commit `.meta` files alongside their associated assets.
+- Use only Assets folder. This is the only needed folder for you to create changes.
