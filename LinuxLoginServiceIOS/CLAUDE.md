@@ -451,3 +451,4 @@ The following should be in `.gitignore` (if using version control):
 
 Always commit `.meta` files alongside their associated assets.
 - Use only Assets folder. This is the only needed folder for you to create changes.
+- Do not place any md files in scripts folder. Rather use .claude folder, additinally add subfolders if needed.
